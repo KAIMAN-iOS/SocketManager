@@ -82,7 +82,7 @@ public class SocketManager: ObservableObject {
     public var handleConnectedStateAutomatically: Bool = true
     public var timerDuration: Double!  {
         didSet {
-            startPings()
+            //startPings()
         }
     }
 
@@ -118,7 +118,7 @@ public class SocketManager: ObservableObject {
     
     private(set) public var appIsInForeground: Bool = true
     private func handleLifeCycle() {
-        startPings()
+        //startPings()
         
         NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { [weak self] _ in
             guard let self = self else { return }
@@ -135,7 +135,7 @@ public class SocketManager: ObservableObject {
             self?.appIsInForeground = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.connect()
-                self?.startPings()
+                //self?.startPings()
             }
         }
     }
