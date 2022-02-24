@@ -24,6 +24,28 @@ public class SocketManager: ObservableObject {
         case invalidRoute
     }
     private var socket: WebSocket!
+    private var shouldReconnect: Bool = false
+    private var isAvailable: Bool = true { // viabilityStateChanged
+        willSet {
+            log("viabilityWillChange \(newValue) - state \(state)")
+            if newValue == false, isAvailable {
+                disconnect()
+                shouldReconnect = true
+            }
+        }
+        
+        didSet {
+            log("isAvailable Changed \(isAvailable) - \(shouldReconnect)")
+            if isAvailable, shouldReconnect {
+                log("will reconnect")
+                shouldReconnect = false
+                connect()
+            }
+            if state != .connecting {
+                state = isAvailable ? .connected : .disconnected
+            }
+        }
+    }
     private var clientIdentifier: UUID!
     private weak var delegate: SocketManagerDelegate!
     private var handledTypes: [SocketBaseMessage.Type] = []
@@ -86,7 +108,6 @@ public class SocketManager: ObservableObject {
         }
     }
 
-
     public init(root: URL,
                 requestCompletion: ((inout URLRequest) -> Void)? = nil,
                 clientIdentifier: UUID,
@@ -112,6 +133,7 @@ public class SocketManager: ObservableObject {
             .sink { [weak self] state in
                 self?.log("Change state to \(state) 🔋")
                 self?.isConnected = state == .connected
+                self?.log("isConnected \(self!.isConnected) 🔋")
             }
             .store(in: &subscriptions)
     }
@@ -181,9 +203,12 @@ public class SocketManager: ObservableObject {
     }
     
     public func connect() {
-        log("CONNECT(🔌)")
-        guard appIsInForeground, [.connecting, .connected].contains(state) == false else { return }
+        log("TRY CONNECT(🔌 - \(state))")
+        guard appIsInForeground,
+                [.connecting, .connected].contains(state) == false else { return }
         log("SEND CONNEXION MESSAGE 📧")
+        log("state \(state)")
+        log("isConnected \(isConnected)")
         state = .connecting
         socket.connect()
     }
@@ -368,14 +393,7 @@ extension SocketManager: WebSocketDelegate {
             state = .disconnected
             
         case .viabilityChanged(let success):
-            log("viabilityChanged \(success)")
-            if success == true, state == .disconnected {
-                state = .connecting
-                connect()
-            }
-            if state != .connecting {
-                state = success ? .connected : .disconnected
-            }
+            isAvailable = success
             
         case .pong: log("pong")
         case .ping: log("ping")
