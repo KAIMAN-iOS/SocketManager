@@ -13,6 +13,13 @@ public typealias SocketRoute = String
 /// In order to handle custom message, please sublclass SocketMessage and use your own data
 open class SocketBaseMessage: Codable {
     public var id: Int
+    /// used when queuing messaging
+    ///  if set to true, all previous messages of the same class will be deleted from queue
+    public var singleInstance: Bool = false
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+    }
     
     init(id: Int = UUID().uuidString.hashValue) {
         self.id = id
@@ -32,7 +39,7 @@ open class ATAReadSocketMessage<T: Decodable>: ATAErrorSocketMessage {
     /// this is the original message sent to the socket that is returned in cas of an error.
     /// it might be needed sometimes
     public var request: T?
-   
+    
     enum CodingKeys: String, CodingKey {
         case request
     }
@@ -53,7 +60,7 @@ open class ATAErrorSocketMessage: ATAWriteSocketMessage {
     public var error: SocketErrorMessage
     
     public override init(id: Int,
-         route: SocketRoute) {
+                         route: SocketRoute) {
         self.error = SocketErrorMessage(errorCode: 0, errorMessage: "")
         super.init(id: id, route: route)
     }
