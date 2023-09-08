@@ -1,6 +1,8 @@
 import UIKit
 import Starscream
 import Combine
+import os
+import SwiftLocation
 
 // MARK: - Protocols
 public protocol SocketManagerDelegate: NSObjectProtocol {
@@ -107,7 +109,7 @@ public class SocketManager: ObservableObject {
             //startPings()
         }
     }
-
+    
     public init(root: URL,
                 requestCompletion: ((inout URLRequest) -> Void)? = nil,
                 clientIdentifier: UUID,
@@ -187,14 +189,14 @@ public class SocketManager: ObservableObject {
         eventPublisher
             .compactMap { [weak self] event -> Data? in
                 switch event {
-                case .binary(let data): return data
-                case .text(let text):
-                    self?.log("Received - \(text)")
-                    if let data = text.data(using: .utf8) {
-                        return data
-                    }
-                    
-                default: ()
+                    case .binary(let data): return data
+                    case .text(let text):
+                        self?.log("Received - \(text)")
+                        if let data = text.data(using: .utf8) {
+                            return data
+                        }
+                        
+                    default: ()
                 }
                 return nil
             }
@@ -205,7 +207,7 @@ public class SocketManager: ObservableObject {
     public func connect() {
         log("TRY CONNECT(🔌 - \(state))")
         guard appIsInForeground,
-                [.connecting, .connected].contains(state) == false else { return }
+              [.connecting, .connected].contains(state) == false else { return }
         log("SEND CONNEXION MESSAGE 📧")
         log("state \(state)")
         log("isConnected \(isConnected)")
@@ -310,7 +312,9 @@ public class SocketManager: ObservableObject {
     }
     
     public var logEmote: String = "🧦"
+    private let logger = Logger(subsystem: "🚖 APP CHAUFFEUR", category: "SOCKET")
     func log(_ message: String) {
+        logger.log("\(self.logEmote, privacy: .public) \(message, privacy: .public)")
         guard isVerbose == true else { return }
         print("\(logEmote) \(String(describing: message))")
     }
@@ -328,7 +332,7 @@ public class SocketManager: ObservableObject {
     }
     
     // MARK: - Combine
-//    private let
+    //    private let
 }
 
 extension SocketManager: WebSocketDelegate {
@@ -336,67 +340,76 @@ extension SocketManager: WebSocketDelegate {
         eventPublisher.send(event)
         
         switch event {
-        case .connected(_):
-            log("Connected")
-            if handleConnectedStateAutomatically {
-                state = .connected
-            }
-            delegate?.socketDidConnect(self)
-            
-        case .disconnected(let reason, let code):
-            log("Disonnected \(reason)")
-            state = .disconnected
-            delegate?.socketDidDisconnect(self, reason: reason, code: code)
-            
-        case .text(let text):
-            log("Received - \(text)")
-            if let data = text.data(using: .utf8) {
+            case .connected(_):
+                log("Connected")
+                if handleConnectedStateAutomatically {
+                    state = .connected
+                }
+                delegate?.socketDidConnect(self)
+                
+            case .disconnected(let reason, let code):
+                log("Disonnected \(reason)")
+                state = .disconnected
+                delegate?.socketDidDisconnect(self, reason: reason, code: code)
+                
+            case .text(let text):
+                log("Received - \(text)")
+                if let data = text.data(using: .utf8) {
+                    handle(data)
+                }
+                
+            case .binary(let data):
                 handle(data)
-            }
-            
-        case .binary(let data):
-            handle(data)
-            
-        case .error(let error):
-            log("Error - \(String(describing: error))")
-            delegate.didReceiveError(error)
-            if useCombine {
-                errorSubject.send(error)
-            }
-            if let wsError = error as? Starscream.WSError {
-                switch (wsError.type, wsError.code) {
-                case (.securityError, 1): reconnect(after: 5)
-                default: ()
+                
+            case .error(let error):
+                log("Error - \(String(describing: error))")
+                delegate.didReceiveError(error)
+                if useCombine {
+                    errorSubject.send(error)
                 }
-            }
-            
-            if let httpError = error as? Starscream.HTTPUpgradeError {
-                switch httpError {
-                case .notAnUpgrade(200, _): reconnect(after: 5)
-                default: ()
+                if let wsError = error as? Starscream.WSError {
+                    switch (wsError.type, wsError.code) {
+                        case (.securityError, 1): reconnect(after: 5)
+                        default: ()
+                    }
                 }
-            }
-            
-        case .reconnectSuggested:
-            log("reconnectSuggested")
-            state = .disconnected
-            connect()
-            
-        case .cancelled:
-            log("cancelled")
-            if state != .disconnecting {
-                // try to reconnect
-                messageQueue.asyncAfter(deadline: .now() + 5, flags: .barrier) { [weak self] in
-                    self?.connect()
+                
+                if let httpError = error as? Starscream.HTTPUpgradeError {
+                    switch httpError {
+                        case .notAnUpgrade(200, _): reconnect(after: 5)
+                        default: ()
+                    }
                 }
-            }
-            state = .disconnected
-            
-        case .viabilityChanged(let success):
-            isAvailable = success
-            
-        case .pong: log("pong")
-        case .ping: log("ping")
+                
+            case .reconnectSuggested:
+                log("reconnectSuggested")
+                state = .disconnected
+                connect()
+                
+            case .cancelled:
+                log("cancelled")
+                if state != .disconnecting {
+                    // try to reconnect
+                    messageQueue.asyncAfter(deadline: .now() + 5, flags: .barrier) { [weak self] in
+                        self?.connect()
+                    }
+                }
+                state = .disconnected
+                
+            case .viabilityChanged(let success):
+                isAvailable = success
+                
+            case .pong: log("pong")
+            case .ping: log("ping")
+            case .peerClosed:
+                state = .disconnected
+                delegate?.socketDidDisconnect(self, reason: "peerClosed", code: 666)
+                reconnect(after: 30)
         }
     }
+}
+
+extension OSLog {
+    private static var subsystem = "🚖 APP CHAUFFEUR"
+    static let socket = OSLog(subsystem: subsystem, category: "SOCKET MANAGER")
 }

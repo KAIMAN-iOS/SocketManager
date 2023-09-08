@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "SocketManager",
-    platforms: [.iOS("13.0")],
+    platforms: [.iOS("14.0")],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
