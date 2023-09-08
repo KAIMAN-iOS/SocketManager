@@ -2,7 +2,7 @@ import UIKit
 import Starscream
 import Combine
 import os
-import SwiftLocation
+//import SwiftLocation
 
 // MARK: - Protocols
 public protocol SocketManagerDelegate: NSObjectProtocol {
