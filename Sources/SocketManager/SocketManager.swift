@@ -109,6 +109,7 @@ public class SocketManager: ObservableObject {
             //startPings()
         }
     }
+    private var socketRequest: URLRequest!
     
     public init(root: URL,
                 requestCompletion: ((inout URLRequest) -> Void)? = nil,
@@ -118,6 +119,7 @@ public class SocketManager: ObservableObject {
         var request = URLRequest(url: root)
         request.timeoutInterval = 30
         requestCompletion?(&request)
+        socketRequest = request
         socket = WebSocket(request: request)
         socket.delegate = self
         encoder.outputFormatting = .prettyPrinted
@@ -212,6 +214,8 @@ public class SocketManager: ObservableObject {
         log("state \(state)")
         log("isConnected \(isConnected)")
         state = .connecting
+        socket = WebSocket(request: socketRequest)
+        socket.delegate = self
         socket.connect()
     }
     
